@@ -1,5 +1,7 @@
 """Graph construction for the architecture workflow."""
 
+from typing import Any
+
 from langgraph.graph import END, START, StateGraph
 
 from cloudy_intell.agents.context import RuntimeContext
@@ -23,7 +25,7 @@ from cloudy_intell.graph.routing import iteration_condition
 from cloudy_intell.schemas.models import State
 
 
-def build_graph(ctx: RuntimeContext, checkpointer):
+def build_graph(ctx: RuntimeContext, checkpointer: Any | None = None):
     """Build and compile LangGraph using modularized node factories."""
 
     graph_builder = StateGraph(State)
@@ -77,4 +79,6 @@ def build_graph(ctx: RuntimeContext, checkpointer):
     )
     graph_builder.add_edge("final_architecture_generator", END)
 
+    if checkpointer is None:
+        return graph_builder.compile()
     return graph_builder.compile(checkpointer=checkpointer)

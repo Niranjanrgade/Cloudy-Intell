@@ -19,6 +19,7 @@ dependencies = [
     "langchain-ollama>=0.3.0",
     "langchain-openai>=0.3.0",
     "langgraph>=1.0.10",
+    "langgraph-cli[inmem]>=0.4.14",
     "langsmith>=0.7.14",
     "pydantic>=2.8.0",
     "pydantic-settings>=2.4.0",

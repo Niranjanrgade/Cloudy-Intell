@@ -53,6 +53,15 @@ class AppSettings(BaseSettings):
     default_thread_id_prefix: str = "cloudy-intell"
     run_label: str = Field(default="local-run", description="Human-readable run label.")
 
+    # LangSmith tracing configuration (off by default).
+    langsmith_tracing: bool = Field(default=False, description="Enable LangSmith tracing.")
+    langsmith_project: str = Field(default="cloudy-intell", description="LangSmith project name.")
+    langsmith_endpoint: str = Field(
+        default="https://api.smith.langchain.com",
+        description="LangSmith API endpoint.",
+    )
+    langsmith_api_key: str = Field(default="", description="LangSmith API key.")
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> AppSettings:
