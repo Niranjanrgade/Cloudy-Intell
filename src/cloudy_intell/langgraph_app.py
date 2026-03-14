@@ -7,6 +7,7 @@ and run the workflow directly from repository configuration.
 from dotenv import load_dotenv
 
 from cloudy_intell.agents.context import RuntimeContext
+from cloudy_intell.config.provider_meta import AWS_META
 from cloudy_intell.config.settings import get_settings
 from cloudy_intell.graph.builder import build_graph
 from cloudy_intell.infrastructure.llm_factory import create_execution_llm, create_reasoning_llm
@@ -27,14 +28,15 @@ def build_runtime_graph():
 
     mini_llm = create_execution_llm(settings)
     reasoning_llm = create_reasoning_llm(settings)
-    vector_store = create_vector_store(settings)
-    tools = create_tool_bundle(mini_llm, vector_store)
+    vector_store = create_vector_store(settings, provider="aws")
+    tools = create_tool_bundle(mini_llm, vector_store, provider_meta=AWS_META)
 
     ctx = RuntimeContext(
         settings=settings,
         mini_llm=mini_llm,
         reasoning_llm=reasoning_llm,
         tools=tools,
+        provider=AWS_META,
     )
     # LangGraph API dev mode manages persistence automatically.
     return build_graph(ctx)

@@ -1,4 +1,8 @@
-"""Synthesis node factories for architecture and validation stages."""
+"""Synthesis node factories for architecture and validation stages.
+
+All prompt text is driven by ``RuntimeContext.provider`` metadata, making
+these factories provider-agnostic (AWS, Azure, GCP, etc.).
+"""
 
 import time
 from typing import Any, Dict, cast
@@ -10,23 +14,6 @@ from cloudy_intell.infrastructure.logging_utils import get_logger
 from cloudy_intell.schemas.models import State
 
 logger = get_logger(__name__)
-
-
-def iteration_condition(state: dict) -> str:
-    """Decide whether to iterate again or finish the workflow."""
-
-    iteration = state.get("iteration_count", 0)
-    min_iterations = state.get("min_iterations", 1)
-    max_iterations = state.get("max_iterations", 3)
-    has_errors = state.get("factual_errors_exist", False)
-
-    if iteration < min_iterations:
-        return "iterate"
-    if has_errors and iteration < max_iterations:
-        return "iterate"
-    if iteration >= max_iterations:
-        return "finish"
-    return "finish"
 
 
 def _invoke_with_retries(llm, prompt: str, node_name: str, retries: int = 3) -> str:
@@ -62,6 +49,8 @@ def _invoke_with_retries(llm, prompt: str, node_name: str, retries: int = 3) -> 
 def architect_synthesizer(ctx: RuntimeContext):
     """Create synthesizer that merges domain architect outputs into one proposal."""
 
+    provider = ctx.provider
+
     def _node(state: State) -> State:
         all_components = state.get("architecture_components", {})
         domain_tasks = state.get("architecture_domain_tasks", {})
@@ -84,7 +73,7 @@ def architect_synthesizer(ctx: RuntimeContext):
             component_summaries.append(f"**{domain.capitalize()} Domain:**\n{recommendation}\n")
 
         prompt = f"""
-        You are an AWS Principal Solutions Architect.
+        You are an {provider.architect_role}.
         Synthesize specialist domain outputs into one coherent architecture proposal.
 
         Original Problem: {state['user_problem']}
@@ -118,6 +107,8 @@ def architect_synthesizer(ctx: RuntimeContext):
 def validation_synthesizer(ctx: RuntimeContext):
     """Create synthesizer that consolidates validator results across domains."""
 
+    provider = ctx.provider
+
     def _node(state: State) -> State:
         all_validation_feedback = state.get("validation_feedback", [])
         if not all_validation_feedback:
@@ -134,7 +125,7 @@ def validation_synthesizer(ctx: RuntimeContext):
             validation_summaries.append(f"**{str(domain).capitalize()} Domain:**\n{result[:300]}...\n")
 
         prompt = f"""
-        You are a validation synthesizer for AWS cloud architecture.
+        You are a validation synthesizer for {provider.display_name} cloud architecture.
         Consolidate all domain validation feedback into an actionable summary.
 
         Original Problem: {state['user_problem']}
@@ -162,13 +153,15 @@ def validation_synthesizer(ctx: RuntimeContext):
 def final_architecture_generator(ctx: RuntimeContext):
     """Create node that emits the final architecture document."""
 
+    provider = ctx.provider
+
     def _node(state: State) -> State:
         proposed_architecture = state.get("proposed_architecture", {})
         architecture_components = state.get("architecture_components", {})
         validation_summary = state.get("validation_summary", "")
 
         prompt = f"""
-        You are a Principal Solutions Architect finalizing an AWS cloud architecture.
+        You are a {provider.architect_role} finalizing a {provider.display_name} cloud architecture.
         Create a concise but production-ready final architecture document.
 
         Original Problem: {state['user_problem']}
@@ -215,5 +208,4 @@ __all__ = [
     "architect_synthesizer",
     "validation_synthesizer",
     "final_architecture_generator",
-    "iteration_condition",
 ]

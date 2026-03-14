@@ -5,6 +5,7 @@ instantiate environment-dependent values directly.
 """
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -49,6 +50,9 @@ class AppSettings(BaseSettings):
     # Embedding runtime (currently Ollama-based).
     embedding_model: str = "nomic-embed-text"
 
+    # Provider mode: which cloud(s) to run.  "aws" (default) | "azure" | "both".
+    provider_mode: Literal["aws", "azure", "both"] = "aws"
+
     # Optional operational metadata for future UI/session wiring.
     default_thread_id_prefix: str = "cloudy-intell"
     run_label: str = Field(default="local-run", description="Human-readable run label.")
@@ -61,6 +65,20 @@ class AppSettings(BaseSettings):
         description="LangSmith API endpoint.",
     )
     langsmith_api_key: str = Field(default="", description="LangSmith API key.")
+
+    # ── Provider helpers ────────────────────────────────────────────────
+
+    def vector_path_for(self, provider: str) -> str:
+        """Return the ChromaDB persist directory for the given provider."""
+        if provider == "azure":
+            return self.providers_azure_vector_path
+        return self.providers_aws_vector_path
+
+    def collection_name_for(self, provider: str) -> str:
+        """Return the ChromaDB collection name for the given provider."""
+        if provider == "azure":
+            return self.providers_azure_collection_name
+        return self.providers_aws_collection_name
 
 
 @lru_cache(maxsize=1)

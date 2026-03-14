@@ -1,0 +1,5 @@
+{
+  "name": "CloudyIntel",
+  "description": "An agentic AI framework using LangGraph to automate and validate complex cloud architectures for AWS and Azure via a recursive Evaluator-Optimizer pattern.",
+  "requestFramePermissions": []
+}

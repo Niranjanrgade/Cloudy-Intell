@@ -6,17 +6,17 @@ from langchain_ollama.embeddings import OllamaEmbeddings
 from cloudy_intell.config.settings import AppSettings
 
 
-def create_vector_store(settings: AppSettings) -> Chroma:
-    """Create the AWS documentation vector store instance.
+def create_vector_store(settings: AppSettings, provider: str = "aws") -> Chroma:
+    """Create a cloud-documentation vector store instance.
 
-    The path and collection name are read from provider-scoped settings so
-    future Azure enablement can switch stores without touching node logic.
+    The path and collection name are resolved from provider-scoped settings so
+    AWS and Azure can each have their own knowledge base.
     """
 
     embeddings = OllamaEmbeddings(model=settings.embedding_model)
     return Chroma(
-        collection_name=settings.providers_aws_collection_name,
-        persist_directory=settings.providers_aws_vector_path,
+        collection_name=settings.collection_name_for(provider),
+        persist_directory=settings.vector_path_for(provider),
         embedding_function=embeddings,
     )
 

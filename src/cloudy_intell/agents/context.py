@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from langchain_openai import ChatOpenAI
 
+from cloudy_intell.config.provider_meta import ProviderMeta
 from cloudy_intell.config.settings import AppSettings
 from cloudy_intell.infrastructure.tools import ToolBundle
 
@@ -19,3 +20,4 @@ class RuntimeContext:
     mini_llm: ChatOpenAI
     reasoning_llm: ChatOpenAI
     tools: ToolBundle
+    provider: ProviderMeta
