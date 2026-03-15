@@ -1,7 +1,23 @@
+/**
+ * Home Page — Main layout for the CloudyIntel application.
+ *
+ * This is the root page component that assembles the three-panel layout:
+ *
+ * 1. **SidebarNavigator** (left): Navigation between AWS, Azure, and Compare views.
+ * 2. **Main content area** (center): Either a WorkflowGraph (for AWS/Azure views)
+ *    or a CompareView (for comparison mode).
+ * 3. **CopilotSidebar** (right or bottom): Chat interface for submitting
+ *    architecture problems and viewing real-time agent status updates.
+ *
+ * The `useRunOrchestration` hook manages all run state (status, active/completed
+ * nodes, messages, architecture results) and is shared across all child components.
+ *
+ * In Compare mode, the layout switches from a horizontal split (graph + sidebar)
+ * to a vertical split (comparison + bottom chat) for better use of screen space.
+ */
 'use client';
 
 import { useState } from 'react';
-import { WorkflowGraph } from '@/components/WorkflowGraph';
 import { CopilotSidebar, ViewMode } from '@/components/CopilotSidebar';
 import { CompareView } from '@/components/CompareView';
 import { SidebarNavigator } from '@/components/SidebarNavigator';
@@ -16,6 +32,7 @@ export default function Home() {
     messages,
     setMessages,
     architectureResult,
+    studioUrl,
     startRun,
   } = useRunOrchestration();
 
@@ -40,7 +57,7 @@ export default function Home() {
                   architectures.
                 </p>
               </div>
-              <CompareView awsResult={architectureResult} />
+              <CompareView awsResult={architectureResult} azureResult={null} />
             </div>
             <CopilotSidebar
               provider={viewMode}
@@ -49,6 +66,7 @@ export default function Home() {
               runStatus={runStatus}
               messages={messages}
               setMessages={setMessages}
+              studioUrl={studioUrl}
             />
           </>
         ) : (
@@ -86,6 +104,7 @@ export default function Home() {
               runStatus={runStatus}
               messages={messages}
               setMessages={setMessages}
+              studioUrl={studioUrl}
             />
           </>
         )}

@@ -2,6 +2,19 @@
 
 Each subgraph encapsulates a supervisor → parallel domain agents → synthesizer
 fan-out/fan-in pattern, keeping the top-level graph concise.
+
+Fan-out/fan-in pattern:
+    supervisor
+      ├─→ domain_agent_1 ──┐
+      ├─→ domain_agent_2 ──┼─→ synthesizer
+      ├─→ domain_agent_3 ──┤
+      └─→ domain_agent_4 ──┘
+
+LangGraph automatically parallelizes the four domain agents because they share
+the same predecessor (supervisor) and successor (synthesizer) without inter-
+dependencies.  Each domain agent writes to its own slice of the state (e.g.
+``architecture_components["compute"]``), and the ``merge_dicts`` reducer
+combines them safely.
 """
 
 from typing import Any
@@ -31,7 +44,13 @@ __all__ = ["build_architect_subgraph", "build_validator_subgraph"]
 
 
 def build_architect_subgraph(ctx: RuntimeContext) -> StateGraph:
-    """Build subgraph: architect_supervisor → 4 domain architects → architect_synthesizer."""
+    """Build subgraph: architect_supervisor → 4 domain architects → architect_synthesizer.
+
+    The supervisor decomposes the user problem into domain tasks, then the four
+    domain architects run in parallel (each generating recommendations for
+    compute, network, storage, or database), and finally the synthesizer merges
+    all domain outputs into a unified architecture proposal.
+    """
 
     sg = StateGraph(State)
 
@@ -60,7 +79,13 @@ def build_architect_subgraph(ctx: RuntimeContext) -> StateGraph:
 
 
 def build_validator_subgraph(ctx: RuntimeContext) -> StateGraph:
-    """Build subgraph: validator_supervisor → 4 domain validators → validation_synthesizer."""
+    """Build subgraph: validator_supervisor → 4 domain validators → validation_synthesizer.
+
+    The validator supervisor creates validation task assignments, then the four
+    domain validators run in parallel (each checking their domain's components
+    against official cloud documentation via RAG), and finally the synthesizer
+    consolidates all validation feedback into an actionable summary.
+    """
 
     sg = StateGraph(State)
 

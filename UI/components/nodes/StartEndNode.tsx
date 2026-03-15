@@ -1,3 +1,15 @@
+/**
+ * StartEndNode — Rounded pill node for workflow start and end points.
+ *
+ * Used for two nodes:
+ * - **Start** (blue): "User Query (AWS/Azure)" — entry point of the workflow.
+ *   Only has a source handle (bottom) since nothing connects into it.
+ * - **End** (emerald green): "Architect Solution Response" — final output.
+ *   Only has a target handle (top) since nothing connects out of it.
+ *
+ * The `data.type` field ("start" or "end") controls the color scheme and
+ * which handles are rendered.
+ */
 import { Handle, Position } from '@xyflow/react';
 
 export function StartEndNode({ data }: { data: any }) {

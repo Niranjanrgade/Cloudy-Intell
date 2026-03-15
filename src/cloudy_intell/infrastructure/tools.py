@@ -1,4 +1,19 @@
-"""Tool construction and tool-bound LLM helper bundle."""
+"""Tool construction and tool-bound LLM helper bundle.
+
+This module creates the two tools used by domain agents:
+
+1. **web_search** — Google Serper API wrapper for real-time web information
+   about cloud services, pricing, and configurations.
+2. **RAG_search** — Retrieval-Augmented Generation tool backed by a ChromaDB
+   vector store containing pre-embedded official cloud documentation.
+
+The ``ToolBundle`` pre-binds LLMs with tool definitions once at startup,
+avoiding repeated binding per invocation.  Three LLM variants are created:
+- ``llm_with_all_tools``: Both web_search + RAG (used by domain architects).
+- ``llm_with_web_tools``: Web search only.
+- ``llm_with_rag_tools``: RAG only (used by domain validators for
+  documentation-verified checking).
+"""
 
 from dataclasses import dataclass
 from functools import partial
@@ -13,7 +28,11 @@ from cloudy_intell.infrastructure.vector_store import rag_search_function
 
 @dataclass(frozen=True)
 class ToolBundle:
-    """Container with tools and frequently-used LLM bindings."""
+    """Container with tools and frequently-used LLM bindings.
+
+    Frozen dataclass ensures immutability since this bundle is shared across
+    all nodes via RuntimeContext during parallel execution.
+    """
 
     web_search: Tool
     rag_search: Tool
@@ -31,6 +50,15 @@ def create_tool_bundle(
 
     We pre-bind once so node execution only depends on this immutable bundle
     instead of repeatedly creating dynamic tool wrappers.
+
+    Args:
+        base_llm: The execution-tier LLM (gpt-4o-mini) to bind tools to.
+        vector_store: ChromaDB vector store instance for RAG search.
+        provider_meta: Optional provider metadata; when provided, the RAG
+                       tool description is customized for that provider.
+
+    Returns:
+        An immutable ``ToolBundle`` with tools and pre-bound LLM instances.
     """
 
     serper = GoogleSerperAPIWrapper()

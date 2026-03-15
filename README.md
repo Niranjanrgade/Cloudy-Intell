@@ -1,58 +1,181 @@
 # Cloudy-Intell
 
-Cloudy-Intell is a multi-agent architecture generation workflow built on LangGraph.
-It decomposes a cloud design problem into domain-specific architect/validator tasks,
-synthesizes recommendations, and iterates until validation converges.
+Cloudy-Intell is a multi-agent cloud architecture generation and validation system built on [LangGraph](https://langchain-ai.github.io/langgraph/).  It uses an **Evaluator-Optimizer** pattern where specialized AI agents decompose a cloud design problem into domain-specific tasks, generate architecture recommendations, validate them against official cloud documentation, and iteratively refine the design until convergence.
 
-## Current Scope
+## Overview
 
-- Backend restructuring from notebook-style monolith to standard `src/` package.
-- AWS-oriented architecture generation and validation flow.
-- Detailed inline code comments and modular separation for maintainability.
+Given a user's cloud architecture problem (e.g. *"Design a secure, scalable three-tier web app on AWS"*), the system:
 
-Deferred by design:
+1. **Decomposes** the problem into four domain-specific tasks (compute, network, storage, database) via an architect supervisor agent.
+2. **Generates** detailed infrastructure recommendations for each domain in parallel using domain architect agents equipped with web search and RAG tools.
+3. **Synthesizes** the four domain outputs into a unified architecture proposal.
+4. **Validates** each domain's recommendations against official cloud provider documentation via RAG-powered validator agents.
+5. **Iterates** if validation errors are found, looping back to step 1 with feedback, up to a configurable maximum number of iterations.
+6. **Produces** a polished, production-ready architecture document once validation converges.
 
-- Azure provider implementation.
-- CopilotKit UI integration.
+The system supports **AWS**, **Azure**, or **both** providers simultaneously, with automatic side-by-side comparison when running in dual-provider mode.
 
-## Project Structure
+## Architecture
 
-```text
-src/cloudy_intell/
-	agents/            # Supervisor, domain, synthesis node factories
-	config/            # Typed app settings and provider namespacing
-	graph/             # Graph builder, routing, state initialization
-	infrastructure/    # LLM/tools/vector-store/checkpointer factories
-	schemas/           # Pydantic contracts + LangGraph state contract
-	services/          # High-level orchestration facade
-	cli.py             # Command-line entrypoint
-Development/
-	CloudyIntel.py     # Legacy notebook-style reference implementation
-tests/
-	...                # Reducer/routing/state tests
+### Backend (Python / LangGraph)
+
 ```
+src/cloudy_intell/
+├── agents/                 # Agent node factories
+│   ├── context.py          # RuntimeContext — immutable dependency container
+│   ├── domain_nodes.py     # Domain architect and validator node factories
+│   ├── supervisors.py      # Architect and validator supervisor nodes
+│   ├── synthesizers.py     # Fan-in synthesis nodes (architect, validation, final)
+│   └── tool_execution.py   # Tool-calling loop with retry logic and error detection
+├── config/                 # Configuration
+│   ├── provider_meta.py    # Cloud provider metadata (AWS/Azure services, validation checks)
+│   └── settings.py         # Typed application settings from env vars / .env file
+├── graph/                  # LangGraph assembly
+│   ├── builder.py          # Top-level graph: architect_phase → validator_phase → conditional → END
+│   ├── routing.py          # Iteration decision logic (iterate vs finish)
+│   ├── state_init.py       # Initial state factory with all field defaults
+│   └── subgraphs.py        # Subgraph builders (supervisor → 4 parallel agents → synthesizer)
+├── infrastructure/         # External integrations
+│   ├── checkpointer.py     # LangGraph MemorySaver checkpointer factory
+│   ├── llm_factory.py      # ChatOpenAI factory (reasoning model + execution model)
+│   ├── logging_utils.py    # Centralized logging configuration
+│   ├── tools.py            # Web search (Google Serper) + RAG tool bundle
+│   └── vector_store.py     # ChromaDB vector store for RAG document retrieval
+├── schemas/                # Data contracts
+│   └── models.py           # Pydantic models + LangGraph State TypedDict with reducers
+├── services/               # High-level orchestration
+│   └── architecture_service.py  # ArchitectureService facade (CLI/API entrypoint)
+├── cli.py                  # Command-line interface
+└── langgraph_app.py        # LangGraph dev/studio entrypoint
+```
+
+### Frontend (Next.js / React)
+
+```
+UI/
+├── app/
+│   ├── page.tsx                    # Main layout (sidebar + workflow graph + chat)
+│   └── api/
+│       ├── threads/route.ts        # POST — create LangGraph thread
+│       ├── threads/[threadId]/state/route.ts  # GET — fetch final graph state
+│       └── runs/stream/route.ts    # POST — stream run via SSE
+├── components/
+│   ├── WorkflowGraph.tsx           # React Flow visualization of the agent pipeline
+│   ├── CopilotSidebar.tsx          # Chat interface with real-time status updates
+│   ├── CompareView.tsx             # Side-by-side AWS vs Azure comparison
+│   ├── SidebarNavigator.tsx        # Left navigation (AWS / Azure / Compare)
+│   ├── nodes/                      # Custom React Flow node types
+│   │   ├── AgentNode.tsx           # Purple agent nodes with status indicators
+│   │   ├── ToolNode.tsx            # Dashed-border tool nodes
+│   │   ├── DecisionNode.tsx        # Diamond validation decision node
+│   │   └── StartEndNode.tsx        # Rounded start/end nodes
+│   └── edges/
+│       └── FarRightEdge.tsx        # Custom edge for iteration loop routing
+├── hooks/
+│   └── useRunOrchestration.ts      # Orchestrates thread → stream → state lifecycle
+└── lib/
+    ├── graph.config.ts             # Node positions, edge definitions, layout helpers
+    ├── node-mapping.ts             # Backend → UI node ID resolution
+    ├── langgraph-client.ts         # LangGraph SDK client factory
+    ├── types.ts                    # TypeScript interfaces mirroring backend State
+    ├── compare.config.ts           # Domain icons and default fallback descriptions
+    └── utils.ts                    # Tailwind CSS utility (cn)
+```
+
+### Workflow Graph Topology
+
+```
+START
+  │
+  ▼
+architect_phase (subgraph)
+  ├─ architect_supervisor ──► decomposes problem into domain tasks
+  ├─ compute_architect ─┐
+  ├─ network_architect  ├──► 4 domain agents run in parallel (web search + RAG tools)
+  ├─ storage_architect  │
+  ├─ database_architect ┘
+  └─ architect_synthesizer ──► merges domain outputs into unified proposal
+  │
+  ▼
+validator_phase (subgraph)
+  ├─ validator_supervisor ──► creates validation assignments per domain
+  ├─ compute_validator ─┐
+  ├─ network_validator  ├──► 4 validators run in parallel (RAG tool for doc-checking)
+  ├─ storage_validator  │
+  ├─ database_validator ┘
+  └─ validation_synthesizer ──► consolidates feedback, sets error flags
+  │
+  ▼
+iteration_condition
+  ├─ "iterate" ──► architect_phase  (if errors exist AND iteration < max)
+  └─ "finish"  ──► final_architecture_generator ──► END
+```
+
+## Prerequisites
+
+- **Python 3.11+** with [uv](https://docs.astral.sh/uv/) package manager
+- **Node.js 18+** with npm (for the UI)
+- **Ollama** running locally with the `nomic-embed-text` embedding model
+- **OpenAI API key** for LLM calls (GPT-5 reasoning, GPT-4o-mini execution)
+- **Google Serper API key** for web search tool
+- **ChromaDB vector stores** pre-built with AWS/Azure documentation embeddings
 
 ## Quick Start
 
-1. Install dependencies:
+### 1. Install dependencies
 
 ```bash
+# Backend
 uv sync --extra dev
+
+# Frontend
+cd UI && npm install
 ```
 
-2. Provide required environment variables in `.env`.
+### 2. Configure environment
 
-3. Run CLI:
+Create a `.env` file in the project root:
 
 ```bash
-uv run cloudy-intell "Guidance for Building a Containerized and Scalable Web Application on AWS" --min-iterations 2 --max-iterations 3
+# Required
+OPENAI_API_KEY=<your-openai-api-key>
+SERPER_API_KEY=<your-serper-api-key>
+
+# Optional — LangSmith tracing
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=<your-langsmith-api-key>
+LANGSMITH_PROJECT=cloudy-intell
+
+# Optional — provider mode
+PROVIDER_MODE=aws   # "aws" | "azure" | "both"
 ```
 
-4. Print only final architecture section:
+### 3. Run via CLI
 
 ```bash
-uv run cloudy-intell "Design a secure, scalable three-tier web app" --print-final-only
+# Basic run (AWS, default iterations)
+uv run cloudy-intell --problem "Design a containerized web app on AWS" --provider aws
+
+# With iteration control
+uv run cloudy-intell --problem "Design a secure three-tier web app" --min-iterations 2 --max-iterations 5
+
+# Both providers with comparison
+uv run cloudy-intell --problem "Design a data pipeline" --provider both
 ```
+
+### 4. Run via UI
+
+Start the LangGraph backend server and the Next.js frontend:
+
+```bash
+# Terminal 1: LangGraph backend
+langgraph dev
+
+# Terminal 2: Next.js frontend
+cd UI && npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.  Use the chat interface to describe your architecture problem and watch the agent workflow execute in real time.
 
 ## LangSmith Studio Setup
 
@@ -71,7 +194,7 @@ LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 2. Run the CLI normally, or override project per run:
 
 ```bash
-uv run cloudy-intell "Design a secure VPC and Kubernetes platform" --langsmith-project cloudy-intell-dev
+uv run cloudy-intell --problem "Design a secure VPC and Kubernetes platform" --langsmith-project cloudy-intell-dev
 ```
 
 3. Open LangSmith Studio and verify:
@@ -107,13 +230,22 @@ Before launching, ensure `.env` has your OpenAI and LangSmith variables.
 ## Dev Commands
 
 ```bash
-uv run ruff check .
-uv run mypy src
-uv run pytest
+uv run ruff check .       # Lint
+uv run mypy src           # Type check
+uv run pytest             # Run tests
 ```
+
+## Key Design Decisions
+
+- **Subgraph composition**: Architect and validator phases are self-contained `StateGraph` instances compiled and nested as nodes in the parent graph, keeping the top-level topology simple.
+- **Provider-agnostic agents**: All prompt content is driven by `ProviderMeta` dataclasses, so adding a new cloud provider requires only defining new metadata — no agent code changes.
+- **Immutable RuntimeContext**: A frozen dataclass passed to all node factories ensures thread-safe sharing during parallel fan-out execution.
+- **Custom state reducers**: LangGraph reducers (`merge_dicts`, `validation_feedback_reducer`, `overwrite_bool`) handle parallel writes from domain agents and support explicit state reset between iterations.
+- **Pre-bound tool LLMs**: Tools are bound to LLM instances once at startup via `ToolBundle`, avoiding repeated binding overhead during execution.
+- **Bounded execution**: Tool-calling loops, LLM invocations, and iteration counts all have configurable upper bounds to prevent runaway cost.
 
 ## Migration Notes
 
 - The source of truth for old behavior is still `Development/CloudyIntel.py`.
 - New implementation is modularized under `src/cloudy_intell/`.
-- During migration validation, compare iteration behavior and final state fields.
+- See [docs/migration-notes.md](docs/migration-notes.md) for detailed migration mapping and validation checklist.

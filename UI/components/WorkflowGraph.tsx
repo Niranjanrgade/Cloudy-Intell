@@ -1,7 +1,22 @@
+/**
+ * WorkflowGraph — React Flow visualization of the LangGraph agent workflow.
+ *
+ * Renders the full architecture generation pipeline as an interactive directed
+ * graph with custom node types:
+ * - **AgentNode** (purple): Supervisor, architect, validator, and synthesizer agents.
+ * - **ToolNode** (dashed): Web search and RAG tools used by domain agents.
+ * - **DecisionNode** (diamond): The validation success decision point.
+ * - **StartEndNode** (rounded): User query start and solution response end.
+ *
+ * Node positions and edge definitions are driven by `lib/graph.config.ts`.
+ * Node statuses (idle/active/completed) are updated in real time via the
+ * `activeNodes` and `completedNodes` sets from `useRunOrchestration`.
+ *
+ * The `FarRightEdge` custom edge type handles the "No" iteration loop that
+ * routes from the decision node back to the architect supervisor along the
+ * far right side of the graph to avoid crossing other edges.
+ */
 'use client';
-
-import { useCallback, useEffect, useMemo } from 'react';
-import {
   ReactFlow,
   Background,
   Controls,

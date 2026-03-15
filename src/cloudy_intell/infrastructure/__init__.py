@@ -1,4 +1,10 @@
-"""Infrastructure layer for external integrations and runtime resources."""
+"""Infrastructure layer for external integrations and runtime resources.
+
+Exports factory functions for LLMs, tools, vector stores, checkpointers, and
+logging configuration.  These factories isolate third-party dependencies
+(OpenAI, ChromaDB, Google Serper, LangGraph) behind clean interfaces so that
+agent and graph modules remain testable and swappable.
+"""
 
 from .checkpointer import create_checkpointer
 from .llm_factory import create_execution_llm, create_reasoning_llm

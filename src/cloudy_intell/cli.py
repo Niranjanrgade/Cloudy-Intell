@@ -1,8 +1,18 @@
 """CLI entrypoint for Cloudy-Intell.
 
-Usage:
+This module provides the command-line interface for running the cloud
+architecture generation workflow.  It parses arguments, constructs an
+``AppSettings`` instance with the requested provider mode, initializes
+the ``ArchitectureService``, and runs the workflow.
+
+Heavy imports (``ArchitectureService``) are deferred until after argument
+parsing so that ``--help`` responds instantly without loading LangChain,
+OpenAI clients, or ChromaDB.
+
+Usage examples:
     cloudy-intell --problem "Design a web app" --provider aws
     cloudy-intell --problem "Design a web app" --provider both
+    cloudy-intell --problem "Design a web app" --min-iterations 2 --max-iterations 5
 """
 
 from __future__ import annotations

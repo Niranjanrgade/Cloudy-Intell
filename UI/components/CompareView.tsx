@@ -1,3 +1,16 @@
+/**
+ * CompareView — Side-by-side AWS vs Azure architecture comparison.
+ *
+ * This component displays two columns (AWS and Azure) with per-domain
+ * architecture summaries.  When a run has completed, it shows the actual
+ * generated recommendations from the LangGraph pipeline.  When no results
+ * are available, it displays default template descriptions from
+ * `lib/compare.config.ts` as placeholder content.
+ *
+ * Each domain (compute, storage, network, database, security) is rendered
+ * as a `SolutionCard` with an icon, title, and description.  The description
+ * is truncated to 300 characters for readability in the comparison view.
+ */
 import { Server } from 'lucide-react';
 import type { ArchitectureState, ArchitectureDomainResult } from '@/lib/types';
 import { DOMAIN_ICONS, AWS_DEFAULTS, AZURE_DEFAULTS, DOMAINS } from '@/lib/compare.config';

@@ -1,7 +1,15 @@
 """LangGraph dev/studio entrypoint.
 
-This module exposes a compiled graph object so `langgraph dev` can discover
+This module exposes a compiled graph object so ``langgraph dev`` can discover
 and run the workflow directly from repository configuration.
+
+When you run ``langgraph dev``, the LangGraph CLI reads ``langgraph.json``
+which points to this module's ``graph`` symbol.  The function builds the full
+runtime (settings, LLMs, vector store, tools, graph) using AWS as the default
+provider, then returns the compiled graph.
+
+Unlike the CLI/service entrypoint, this module does NOT create a checkpointer
+because the LangGraph dev server manages persistence automatically.
 """
 
 from dotenv import load_dotenv

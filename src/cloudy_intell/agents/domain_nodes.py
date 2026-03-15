@@ -2,6 +2,23 @@
 
 All prompt text is driven by ``RuntimeContext.provider`` metadata, making
 these factories provider-agnostic (AWS, Azure, GCP, etc.).
+
+This module defines the core domain-level agents:
+
+- **Domain Architects** (compute, network, storage, database): Each architect
+  receives a task assignment from the architect supervisor, uses web search
+  and/or RAG tools to gather information, and produces detailed infrastructure
+  recommendations for its specific domain.
+
+- **Domain Validators** (compute, network, storage, database): Each validator
+  checks the proposed architecture for its domain against official cloud
+  provider documentation (via RAG tool) and produces a structured validation
+  report with errors, warnings, and improvement suggestions.
+
+Both architect and validator functions are implemented as closures: the outer
+function (e.g. ``_domain_architect``) captures the ``RuntimeContext`` and domain
+name, while the inner ``_node`` function matches the LangGraph node signature
+``(state: State) -> State``.
 """
 
 from typing import Any, Dict, cast
@@ -17,7 +34,23 @@ logger = get_logger(__name__)
 
 
 def _domain_architect(ctx: RuntimeContext, domain: str):
-    """Create one domain architect node using provider metadata for services."""
+    """Create one domain architect node using provider metadata for services.
+
+    The architect node performs the following steps:
+    1. Reads its task assignment from ``state["architecture_domain_tasks"][domain]``.
+    2. Checks for prior validation feedback to incorporate in refinement iterations.
+    3. Constructs a system prompt with the task details, constraints, and provider context.
+    4. Calls the LLM with tool access (web search + RAG) to generate recommendations.
+    5. Formats the output via ``format_component_recommendations`` and returns a
+       partial state update that writes to ``state["architecture_components"][domain]``.
+
+    Args:
+        ctx: Runtime context with LLMs, tools, and provider metadata.
+        domain: The architecture domain ("compute", "network", "storage", or "database").
+
+    Returns:
+        A LangGraph node function ``(State) -> State``.
+    """
 
     provider = ctx.provider
     domain_services = provider.domain_services.get(domain, f"{domain} services")
@@ -123,7 +156,24 @@ def _domain_architect(ctx: RuntimeContext, domain: str):
 
 
 def _domain_validator(ctx: RuntimeContext, domain: str):
-    """Create one domain validator node using provider metadata for checks."""
+    """Create one domain validator node using provider metadata for checks.
+
+    The validator node performs the following steps:
+    1. Reads validation task details from ``state["architecture_domain_tasks"]["validation_tasks"][domain]``.
+    2. Reads the proposed architecture components for its domain.
+    3. Constructs a system prompt referencing official provider documentation checks.
+    4. Calls the LLM with RAG tool access to validate against documentation.
+    5. Uses ``detect_errors_llm`` to classify whether the validation result
+       indicates actionable errors.
+    6. Returns a partial state update with validation feedback and error flags.
+
+    Args:
+        ctx: Runtime context with LLMs, tools, and provider metadata.
+        domain: The architecture domain ("compute", "network", "storage", or "database").
+
+    Returns:
+        A LangGraph node function ``(State) -> State``.
+    """
 
     provider = ctx.provider
     validation_checks = provider.validation_checks.get(

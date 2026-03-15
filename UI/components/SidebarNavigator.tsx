@@ -1,3 +1,14 @@
+/**
+ * SidebarNavigator — Left sidebar navigation for CloudyIntel.
+ *
+ * Provides navigation between the three main views:
+ * - **AWS Architecture**: Shows the AWS agent workflow graph.
+ * - **Azure Architecture**: Shows the Azure agent workflow graph.
+ * - **Compare Solutions**: Shows a side-by-side architecture comparison.
+ *
+ * Also includes a Settings button (currently a placeholder for future
+ * configuration options like model selection, iteration bounds, etc.).
+ */
 import { Cloud, Columns, Settings, Server } from 'lucide-react';
 import { ViewMode } from './CopilotSidebar';
 

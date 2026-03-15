@@ -1,3 +1,11 @@
+/**
+ * ToolNode — Custom React Flow node for tool integrations (web search, RAG).
+ *
+ * Rendered as a rounded pill shape with a dashed border to visually
+ * distinguish tools from agent nodes.  Domain architects connect to the
+ * web_search tool node, and domain validators connect to the RAG tool node.
+ * These connections are shown as dashed, animated edges in the graph.
+ */
 import { Handle, Position } from '@xyflow/react';
 
 export function ToolNode({ data }: { data: any }) {

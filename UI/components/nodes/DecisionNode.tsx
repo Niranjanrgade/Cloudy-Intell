@@ -1,3 +1,12 @@
+/**
+ * DecisionNode — Diamond-shaped decision node for validation routing.
+ *
+ * Represents the "Validation Success?" decision point in the workflow graph.
+ * Rendered as a rotated square (diamond shape) with:
+ * - Top handle (target): Receives edge from the validation reducer.
+ * - Bottom handle ("yes"): Green, routes to the end node when validation passes.
+ * - Right handle ("no"): Red, routes back to architect supervisor for re-iteration.
+ */
 import { Handle, Position } from '@xyflow/react';
 
 export function DecisionNode({ data }: { data: any }) {

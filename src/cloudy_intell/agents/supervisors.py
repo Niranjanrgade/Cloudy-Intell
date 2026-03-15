@@ -2,6 +2,21 @@
 
 All prompt text is driven by ``RuntimeContext.provider`` metadata, making
 these factories provider-agnostic (AWS, Azure, GCP, etc.).
+
+Supervisors are the "orchestration" agents in the workflow:
+
+- **Architect Supervisor**: Receives the user problem and decomposes it into
+  structured, domain-specific task assignments (one per domain).  On subsequent
+  iterations, it incorporates validation feedback to produce refined tasks.
+  Uses ``with_structured_output(TaskDecomposition)`` to guarantee the LLM
+  returns valid, typed JSON matching the Pydantic schema.
+
+- **Validator Supervisor**: Inspects the proposed architecture components and
+  creates targeted validation assignments for each domain that has active
+  components.  Uses ``with_structured_output(ValidationDecomposition)``.
+
+Both supervisors include retry logic with exponential backoff to handle
+transient LLM API failures gracefully.
 """
 
 import time
@@ -17,7 +32,25 @@ logger = get_logger(__name__)
 
 
 def architect_supervisor(ctx: RuntimeContext):
-    """Create architect supervisor node bound to runtime context."""
+    """Create architect supervisor node bound to runtime context.
+
+    The architect supervisor is the entry point for each iteration.  It:
+    1. Increments the iteration counter.
+    2. Reads any validation feedback from the previous iteration.
+    3. Builds a system prompt listing all architecture domains and their
+       representative services (from provider metadata).
+    4. Invokes the reasoning LLM with structured output to produce a
+       ``TaskDecomposition`` containing one ``DomainTask`` per domain.
+    5. Clears stale state fields (validation_feedback, architecture_components,
+       proposed_architecture, factual_errors_exist) to prepare for fresh
+       outputs from domain architects.
+    6. Returns a partial state update that populates ``architecture_domain_tasks``
+       with the decomposed tasks.
+
+    On error, it returns a state with ``factual_errors_exist=True`` and an
+    error message in ``architecture_summary`` so the iteration loop terminates
+    gracefully rather than crashing.
+    """
 
     provider = ctx.provider
 
@@ -137,7 +170,21 @@ def architect_supervisor(ctx: RuntimeContext):
 
 
 def validator_supervisor(ctx: RuntimeContext):
-    """Create validator supervisor node bound to runtime context."""
+    """Create validator supervisor node bound to runtime context.
+
+    The validator supervisor inspects the proposed architecture and creates
+    targeted validation assignments.  It:
+    1. Reads ``architecture_components`` and ``proposed_architecture`` from state.
+    2. Builds a system prompt asking the LLM to identify which components
+       need validation and what aspects to focus on.
+    3. Invokes the reasoning LLM with structured output to produce a
+       ``ValidationDecomposition``.
+    4. Merges the validation task assignments into ``architecture_domain_tasks``
+       under the ``validation_tasks`` key, preserving existing task data.
+
+    Only domains with active components receive validation tasks; empty
+    domains are intentionally skipped.
+    """
 
     provider = ctx.provider
 

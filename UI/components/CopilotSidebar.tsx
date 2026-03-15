@@ -1,7 +1,26 @@
+/**
+ * CopilotSidebar — Chat interface for CloudyIntel.
+ *
+ * This component provides the conversational UI where users describe their
+ * cloud architecture problem and receive real-time status updates as the
+ * LangGraph agents work.  Features:
+ *
+ * - **Message display**: Shows user messages, assistant responses, and
+ *   per-node status updates (e.g. "Compute Architect — designing compute layer").
+ * - **Input handling**: Text input with Enter-to-send and button submission.
+ *   Disabled while a run is in progress.
+ * - **LangGraph Studio link**: External link button to open the active run
+ *   in LangGraph Studio for detailed observation.
+ * - **Provider context switching**: Automatically appends a context-switch
+ *   message when the user changes providers (AWS/Azure/Compare).
+ * - **Layout variants**: Supports both sidebar (right panel) and bottom
+ *   (horizontal) layouts for different view modes.
+ * - **Auto-scroll**: Scrolls to the latest message as new updates arrive.
+ */
 'use client';
 
 import { useState, useRef, useEffect, Dispatch, SetStateAction } from 'react';
-import { Send, Bot, User, Sparkles, X, Loader2, Activity } from 'lucide-react';
+import { Send, Bot, User, Sparkles, X, Loader2, Activity, ExternalLink } from 'lucide-react';
 import type { RunStatus, ChatMessage } from '@/lib/types';
 
 export type ViewMode = 'AWS' | 'Azure' | 'Compare';
@@ -13,6 +32,7 @@ interface CopilotSidebarProps {
   runStatus: RunStatus;
   messages: ChatMessage[];
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
+  studioUrl?: string | null;
 }
 
 export function CopilotSidebar({
@@ -22,6 +42,7 @@ export function CopilotSidebar({
   runStatus,
   messages,
   setMessages,
+  studioUrl,
 }: CopilotSidebarProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [input, setInput] = useState('');
@@ -88,12 +109,25 @@ export function CopilotSidebar({
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setIsOpen(false)}
-          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {studioUrl && (
+            <a
+              href={studioUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View in LangGraph Studio"
+              className="p-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-md transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          )}
+          <button
+            onClick={() => setIsOpen(false)}
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -133,6 +167,17 @@ export function CopilotSidebar({
                 }`}
               >
                 {msg.content}
+                {msg.link && (
+                  <a
+                    href={msg.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Open in LangGraph Studio
+                  </a>
+                )}
               </div>
             </div>
           ),

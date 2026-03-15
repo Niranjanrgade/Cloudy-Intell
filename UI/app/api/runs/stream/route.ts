@@ -1,3 +1,20 @@
+/**
+ * POST /api/runs/stream — Start a streaming LangGraph run.
+ *
+ * This API route acts as a proxy between the Next.js frontend and the LangGraph
+ * backend server.  It:
+ *
+ * 1. Validates the request body (requires `thread_id` and `user_problem`).
+ * 2. Constructs the initial graph state matching `create_initial_state()` from
+ *    the Python backend (all State fields with their default values).
+ * 3. Calls `client.runs.stream()` with `streamMode: ['updates']` so the frontend
+ *    receives per-node state deltas rather than the full state on every update.
+ * 4. Converts the LangGraph SDK's async iterator into a standard SSE ReadableStream
+ *    that the browser's `fetch` API can consume.
+ *
+ * Each SSE event is formatted as `data: {"event": "...", "data": {...}}\n\n`.
+ * The stream ends with `data: [DONE]\n\n`.
+ */
 import { NextRequest } from 'next/server';
 import { getLanggraphClient } from '@/lib/langgraph-client';
 

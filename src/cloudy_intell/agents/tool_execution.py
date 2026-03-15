@@ -1,4 +1,25 @@
-"""Shared tool execution and formatting helpers for node modules."""
+"""Shared tool execution and formatting helpers for node modules.
+
+This module provides the core tool-calling loop used by all domain architect
+and validator agents.  When an LLM response contains tool calls (e.g. to
+web_search or RAG_search), ``execute_tool_calls`` handles the full cycle:
+
+1. Invoke the LLM and check the response for tool_calls.
+2. For each tool call, look up the tool by name, invoke it, and append the
+   result as a ``ToolMessage`` to the conversation.
+3. Re-invoke the LLM with the updated conversation so it can use the tool
+   results to generate a final answer.
+4. Repeat until the LLM produces a response without tool calls, or the
+   iteration/timeout limit is reached.
+
+This loop is bounded by ``max_iterations`` and ``timeout`` to prevent runaway
+cost.  Individual LLM invocations are retried with exponential backoff via
+``retry_attempts``.
+
+Also provides ``detect_errors_llm`` which uses a lightweight LLM call to
+classify whether a validation result contains actionable errors, with a
+keyword-based fallback if the LLM call fails.
+"""
 
 import time
 from typing import Any, Dict, List, Optional
@@ -15,7 +36,10 @@ def format_component_recommendations(domain_name: str, task_info: Dict[str, Any]
     """Return architect output or a deterministic fallback skeleton.
 
     This avoids empty component sections propagating through synthesis when the
-    model produces empty content due to tool failures or retries.
+    model produces empty content due to tool failures or retries.  If the LLM
+    returned valid text, it is returned as-is.  Otherwise, a structured fallback
+    is generated from the task_info (requirements and deliverables) so downstream
+    nodes always have something meaningful to work with.
     """
 
     if generated_text and generated_text.strip():
@@ -52,6 +76,29 @@ def execute_tool_calls(
 
     The loop is intentionally defensive because either model invocation or tool
     invocation can fail transiently (network/API/tool runtime issues).
+
+    Execution flow:
+    1. Invoke the LLM (with retry on failure).
+    2. If the response contains tool_calls, execute each tool and add results
+       as ToolMessages to the conversation history.
+    3. Re-invoke the LLM with the updated history.
+    4. Repeat until: (a) the LLM responds without tool calls (final answer),
+       (b) max_iterations reached, or (c) timeout exceeded.
+
+    If tools fail, a SystemMessage warning is injected so the LLM can adapt
+    its response based on available information.  The function always returns
+    an AIMessage, even on complete failure, to prevent graph crashes.
+
+    Args:
+        messages: Conversation history (system prompt + user message).
+        llm_with_tools: LLM instance pre-bound with tool definitions.
+        tools: Dict mapping tool names to callable Tool instances.
+        max_iterations: Maximum number of tool-call rounds.
+        timeout: Wall-clock timeout in seconds for the entire loop.
+        retry_attempts: Retries per individual LLM invocation.
+
+    Returns:
+        The final AIMessage containing the LLM's answer.
     """
 
     tool_iterations = 0
@@ -153,7 +200,28 @@ def execute_tool_calls(
 
 
 def detect_errors_llm(validation_result: str, mini_llm) -> bool:
-    """Use model-based classification for YES/NO validation-error detection."""
+    """Use model-based classification for YES/NO validation-error detection.
+
+    This function determines whether a validation result contains actionable
+    errors that should trigger another architect→validate iteration.
+
+    Strategy:
+    1. Truncate the validation result to ~1000 chars to avoid prompt bloat.
+    2. Ask the lightweight LLM (gpt-4o-mini) a simple YES/NO question.
+    3. Parse the response for YES or NO.
+    4. If the LLM response is ambiguous, fall back to keyword counting:
+       - Strong error indicators: "error", "incorrect", "invalid", etc.
+       - Weak indicators: "problem", "should be", "issue", etc.
+       - Returns True if ≥1 strong match or ≥2 weak matches.
+    5. If the LLM call fails entirely, use the same keyword fallback.
+
+    Args:
+        validation_result: The full text output from a domain validator.
+        mini_llm: Lightweight LLM instance for classification.
+
+    Returns:
+        True if errors/issues requiring fixes were detected, False otherwise.
+    """
 
     try:
         max_length = 1000

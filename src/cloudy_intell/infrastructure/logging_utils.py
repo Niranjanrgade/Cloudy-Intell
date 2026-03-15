@@ -2,6 +2,11 @@
 
 Centralizing logging setup keeps consistent formatting across CLI and tests,
 while allowing future structured logging upgrades in one place.
+
+All modules obtain their logger via ``get_logger(__name__)`` which ensures
+log messages include the fully qualified module path for easy filtering.
+The root logging format is configured once at process startup by
+``configure_logging`` (called from ``ArchitectureService.__init__``).
 """
 
 import logging

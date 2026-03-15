@@ -1,3 +1,10 @@
+/**
+ * useIsMobile — Responsive breakpoint detection hook.
+ *
+ * Listens for viewport width changes and returns `true` when the window
+ * width is below 768px (mobile breakpoint).  Used for responsive layout
+ * adjustments across the application.
+ */
 import * as React from "react"
 
 const MOBILE_BREAKPOINT = 768

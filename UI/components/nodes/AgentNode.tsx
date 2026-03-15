@@ -1,3 +1,15 @@
+/**
+ * AgentNode — Custom React Flow node for AI agents in the workflow graph.
+ *
+ * Displays a rounded rectangle with the agent's label and a visual status
+ * indicator.  Three status states are supported:
+ * - **idle** (purple): Default state before the agent has executed.
+ * - **active** (purple with pulse animation): Agent is currently executing.
+ * - **completed** (green with checkmark badge): Agent has finished successfully.
+ *
+ * Has handles on top (target), right (target, for iteration loop edge), and
+ * bottom (source) to support the workflow graph's edge routing.
+ */
 import { Handle, Position } from '@xyflow/react';
 import type { NodeStatus } from '@/lib/types';
 

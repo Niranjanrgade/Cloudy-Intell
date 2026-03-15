@@ -1,4 +1,22 @@
-"""High-level orchestration service used by CLI and future APIs."""
+"""High-level orchestration service used by CLI and future APIs.
+
+The ``ArchitectureService`` is the primary public interface for running the
+cloud architecture generation workflow.  It handles:
+
+1. **Dependency wiring**: Creates LLM instances, vector stores, tool bundles,
+   and runtime contexts for each enabled cloud provider.
+2. **Graph construction**: Builds and compiles a LangGraph ``StateGraph`` for
+   each provider, with checkpointing enabled for state persistence.
+3. **Run execution**: Invokes the graph with an initial state derived from the
+   user's problem statement and iteration parameters.
+4. **Multi-provider support**: Can run AWS-only, Azure-only, or both pipelines
+   with automatic comparison summary generation.
+5. **LangSmith integration**: Configures tracing environment variables and
+   attaches run metadata (tags, labels) for Studio observability.
+
+This module also contains helper functions for LangSmith configuration,
+graph run config construction, and comparison summary generation.
+"""
 
 from __future__ import annotations
 
@@ -30,7 +48,23 @@ def _build_provider_runtime(
     mini_llm,
     reasoning_llm,
 ):
-    """Build a RuntimeContext + compiled graph for a single provider."""
+    """Build a RuntimeContext + compiled graph for a single provider.
+
+    This helper encapsulates the full initialization sequence for one provider:
+    1. Create a ChromaDB vector store pointed at the provider's documentation.
+    2. Create a tool bundle with web search + RAG tools, bound to the LLM.
+    3. Assemble a RuntimeContext with all dependencies.
+    4. Build and compile the LangGraph with a MemorySaver checkpointer.
+
+    Args:
+        settings: Application configuration.
+        provider_meta: Provider metadata (AWS_META or AZURE_META).
+        mini_llm: Execution-tier LLM instance.
+        reasoning_llm: Reasoning-tier LLM instance.
+
+    Returns:
+        Tuple of (RuntimeContext, compiled graph).
+    """
 
     vector_store = create_vector_store(settings, provider=provider_meta.name)
     tools = create_tool_bundle(mini_llm, vector_store, provider_meta=provider_meta)
@@ -52,6 +86,10 @@ class ArchitectureService:
     - ``aws``  — run the original AWS pipeline (default).
     - ``azure`` — run the Azure pipeline.
     - ``both`` — run both pipelines independently and return a comparison.
+
+    The constructor eagerly initializes all provider runtimes so that graph
+    compilation errors are caught at startup rather than mid-run.  LLM instances
+    are shared across providers to reuse connection pools.
     """
 
     def __init__(self, settings: AppSettings):

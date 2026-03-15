@@ -3,6 +3,14 @@
 Each provider carries its own domain-service mappings, prompt role labels,
 validation checklists, and vector-store keys so that agent modules can render
 provider-specific behaviour without hardcoding cloud vendor names.
+
+This module is the single source of truth for everything that differs between
+cloud providers.  Adding a new provider (e.g. GCP) requires only defining a
+new ``ProviderMeta`` instance and registering it in ``PROVIDER_REGISTRY``;
+no agent or graph code needs to change.
+
+The frozen dataclass ensures metadata is immutable once created, preventing
+accidental mutation during parallel node execution.
 """
 
 from __future__ import annotations
@@ -15,7 +23,22 @@ ProviderName = Literal["aws", "azure"]
 
 @dataclass(frozen=True)
 class ProviderMeta:
-    """Immutable metadata for one cloud provider."""
+    """Immutable metadata for one cloud provider.
+
+    Fields:
+        name: Canonical lowercase identifier ("aws" or "azure") used as
+              dictionary keys and in file paths.
+        display_name: Human-readable name used in prompts and UI labels.
+        architect_role: Role description injected into supervisor/synthesizer
+                        system prompts (e.g. "AWS Principal Solutions Architect").
+        domain_services: Maps each architecture domain (compute, network, etc.)
+                         to a comma-separated list of representative services
+                         for that domain.  Used to prime domain architect prompts.
+        validation_checks: Maps each domain to a numbered checklist of
+                           validation criteria that domain validators follow.
+        rag_tool_description: Description string bound to the RAG search tool
+                              so the LLM understands what the tool retrieves.
+    """
 
     name: ProviderName
     display_name: str
@@ -128,12 +151,18 @@ AZURE_META = ProviderMeta(
 )
 
 # ── Registry ────────────────────────────────────────────────────────────────
+# Central lookup for all supported providers.  The ArchitectureService uses
+# this registry to resolve which provider(s) to initialise based on the
+# ``provider_mode`` setting.
 
 PROVIDER_REGISTRY: dict[ProviderName, ProviderMeta] = {
     "aws": AWS_META,
     "azure": AZURE_META,
 }
 
+# The four architecture domains that every provider supports.  This tuple
+# is the canonical list used by subgraph builders to wire parallel domain
+# agents.
 DOMAINS = ("compute", "network", "storage", "database")
 
 

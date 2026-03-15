@@ -1,4 +1,18 @@
-"""Graph node implementations split by responsibility."""
+"""Graph node implementations split by responsibility.
+
+This package exports all agent node factories organized by role:
+
+- ``RuntimeContext``: Immutable dependency container passed to all factories.
+- ``architect_supervisor`` / ``validator_supervisor``: Orchestration agents that
+  decompose tasks into domain-specific assignments.
+- ``compute_architect``, ``network_architect``, etc.: Domain-specific architect
+  agents that generate infrastructure recommendations.
+- ``compute_validator``, ``network_validator``, etc.: Domain-specific validator
+  agents that check recommendations against documentation.
+- ``architect_synthesizer``, ``validation_synthesizer``: Fan-in agents that
+  merge parallel domain outputs.
+- ``final_architecture_generator``: Terminal node that produces the final document.
+"""
 
 from .context import RuntimeContext
 from .domain_nodes import (

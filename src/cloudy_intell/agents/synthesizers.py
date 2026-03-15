@@ -2,6 +2,19 @@
 
 All prompt text is driven by ``RuntimeContext.provider`` metadata, making
 these factories provider-agnostic (AWS, Azure, GCP, etc.).
+
+Synthesizers are fan-in nodes that collect outputs from parallel domain agents
+and merge them into coherent summaries:
+
+- **Architect Synthesizer**: Merges the four domain architects' recommendations
+  into a single unified architecture proposal.
+- **Validation Synthesizer**: Consolidates the four domain validators' feedback
+  into an actionable validation summary with priority fixes.
+- **Final Architecture Generator**: Produces the polished, production-ready
+  architecture document after all iterations converge.
+
+All synthesizers use the reasoning LLM (higher capability) because they need
+to understand and integrate content across multiple domains coherently.
 """
 
 import time
@@ -17,7 +30,13 @@ logger = get_logger(__name__)
 
 
 def _invoke_with_retries(llm, prompt: str, node_name: str, retries: int = 3) -> str:
-    """Invoke an LLM prompt with bounded retries and validated text output."""
+    """Invoke an LLM prompt with bounded retries and validated text output.
+
+    Uses exponential backoff (1s, 2s, 4s) between retries.  Returns the LLM
+    response content as a string, or a formatted error message if all retries
+    fail.  This helper is used by all synthesizer nodes to standardize retry
+    behavior and ensure synthesizers never crash the graph on transient failures.
+    """
 
     last_error: Exception | None = None
     for attempt in range(retries):
@@ -47,7 +66,17 @@ def _invoke_with_retries(llm, prompt: str, node_name: str, retries: int = 3) -> 
 
 
 def architect_synthesizer(ctx: RuntimeContext):
-    """Create synthesizer that merges domain architect outputs into one proposal."""
+    """Create synthesizer that merges domain architect outputs into one proposal.
+
+    Collects per-domain recommendations from ``state["architecture_components"]``
+    and asks the reasoning LLM to produce a unified architecture with:
+    - High-level architecture summary
+    - Integrated component design across all domains
+    - Key design decisions and tradeoffs
+
+    The result is stored in ``state["proposed_architecture"]`` for consumption
+    by the validator supervisor.
+    """
 
     provider = ctx.provider
 
@@ -105,7 +134,13 @@ def architect_synthesizer(ctx: RuntimeContext):
 
 
 def validation_synthesizer(ctx: RuntimeContext):
-    """Create synthesizer that consolidates validator results across domains."""
+    """Create synthesizer that consolidates validator results across domains.
+
+    Reads all entries from ``state["validation_feedback"]`` and produces a
+    summary that includes overall validation status, key cross-domain issues,
+    priority fixes, and a recommendation on whether to iterate further or
+    finalize the architecture.
+    """
 
     provider = ctx.provider
 
@@ -151,7 +186,22 @@ def validation_synthesizer(ctx: RuntimeContext):
 
 
 def final_architecture_generator(ctx: RuntimeContext):
-    """Create node that emits the final architecture document."""
+    """Create node that emits the final architecture document.
+
+    This node runs only after the iteration loop terminates (either by
+    convergence or reaching max iterations).  It collects the entire
+    architecture state—proposed architecture, individual components, and
+    the final validation summary—and asks the reasoning LLM to produce a
+    polished, production-ready document with:
+    1. Executive summary
+    2. Architecture overview
+    3. Component details per domain
+    4. Security and operational considerations
+    5. Deployment guidance
+
+    The output is stored both in ``final_architecture`` (structured dict)
+    and ``architecture_summary`` (text) for CLI display and UI rendering.
+    """
 
     provider = ctx.provider
 

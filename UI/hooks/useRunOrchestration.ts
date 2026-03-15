@@ -1,6 +1,26 @@
+/**
+ * useRunOrchestration — Central orchestration hook for the CloudyIntel UI.
+ *
+ * This hook manages the entire lifecycle of a cloud architecture generation run:
+ *
+ * 1. **Thread creation**: Creates a new LangGraph thread via the `/api/threads` endpoint.
+ * 2. **LangGraph Studio**: Opens a LangGraph Studio tab for real-time run observation.
+ * 3. **SSE streaming**: Initiates a streaming run via `/api/runs/stream` and processes
+ *    Server-Sent Events (SSE) to update the UI in real time.
+ * 4. **Node status tracking**: Maps backend node names (e.g. "architect_phase:compute_architect")
+ *    to UI node IDs and manages active/completed sets for the workflow graph visualization.
+ * 5. **Chat messages**: Maintains the chat history shown in the CopilotSidebar, including
+ *    user messages, status updates (which node is currently executing), and assistant responses.
+ * 6. **Final state fetch**: After the stream ends, fetches the complete final state from
+ *    `/api/threads/{threadId}/state` to populate the CompareView with architecture results.
+ *
+ * The hook exposes `runStatus` (idle/running/completed/error), node status sets, messages,
+ * the architecture result, and the `startRun` callback for the UI to consume.
+ */
+
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { RunStatus, ChatMessage, ArchitectureState } from '@/lib/types';
 import { BACKEND_TO_UI_NODE, NODE_LABELS } from '@/lib/node-mapping';
 
@@ -18,7 +38,17 @@ export function useRunOrchestration() {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [architectureResult, setArchitectureResult] =
     useState<ArchitectureState | null>(null);
+  const [studioUrl, setStudioUrl] = useState<string | null>(null);
   const threadIdRef = useRef<string | null>(null);
+  const msgIdRef = useRef(100);
+  const timeoutIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Clean up pending timeouts on unmount
+  useEffect(() => {
+    return () => {
+      timeoutIdsRef.current.forEach(clearTimeout);
+    };
+  }, []);
 
   const startRun = useCallback(async (userProblem: string) => {
     const userMsg: ChatMessage = {
@@ -30,6 +60,8 @@ export function useRunOrchestration() {
     setRunStatus('running');
     setActiveNodes(new Set());
     setCompletedNodes(new Set());
+    timeoutIdsRef.current.forEach(clearTimeout);
+    timeoutIdsRef.current = [];
 
     try {
       // 1. Create a thread
@@ -37,6 +69,22 @@ export function useRunOrchestration() {
       if (!threadRes.ok) throw new Error('Failed to create thread');
       const { thread_id } = await threadRes.json();
       threadIdRef.current = thread_id;
+
+      // Open LangGraph Studio in a new tab
+      const baseUrl =
+        process.env.NEXT_PUBLIC_LANGGRAPH_API_URL || 'http://localhost:2024';
+      const url = `https://smith.langchain.com/studio/thread/${thread_id}?baseUrl=${encodeURIComponent(baseUrl)}`;
+      setStudioUrl(url);
+      window.open(url, '_blank', 'noopener');
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 0.1,
+          role: 'assistant',
+          content: 'Opened LangGraph Studio — track the run in real time.',
+          link: url,
+        },
+      ]);
 
       // 2. Start streaming run
       const streamRes = await fetch('/api/runs/stream', {
@@ -96,7 +144,7 @@ export function useRunOrchestration() {
                   return next;
                 });
 
-                setTimeout(() => {
+                const tid = setTimeout(() => {
                   setActiveNodes((prev) => {
                     const next = new Set(prev);
                     next.delete(uiNodeId);
@@ -108,12 +156,13 @@ export function useRunOrchestration() {
                     return next;
                   });
                 }, 600);
+                timeoutIdsRef.current.push(tid);
               }
 
               setMessages((prev) => [
                 ...prev,
                 {
-                  id: Date.now() + Math.random(),
+                  id: ++msgIdRef.current,
                   role: 'status',
                   content: label,
                 },
@@ -169,6 +218,7 @@ export function useRunOrchestration() {
     messages,
     setMessages,
     architectureResult,
+    studioUrl,
     startRun,
   };
 }
